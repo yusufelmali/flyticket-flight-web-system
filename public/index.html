@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FlyTicket | Flights</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f7f6; color: #333; }
+        
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #e1e8ed; padding-bottom: 15px; }
+        h1 { color: #2c3e50; margin: 0; }
+        
+        .admin-nav-btn { background-color: #34495e; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; border: none; cursor: pointer; transition: background 0.3s; }
+        .admin-nav-btn:hover { background-color: #2c3e50; }
+
+        .search-box { background: white; padding: 25px; margin-bottom: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; gap: 15px; align-items: center; flex-wrap: wrap; border-top: 4px solid #3498db; }
+        select, input, button { padding: 12px; font-size: 15px; border: 1px solid #dce1e5; border-radius: 6px; outline: none; transition: border-color 0.3s; }
+        select:focus, input:focus { border-color: #3498db; }
+        
+        button { background-color: #3498db; color: white; border: none; cursor: pointer; font-weight: bold; transition: all 0.3s; }
+        button:hover { background-color: #2980b9; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .show-all-btn { background-color: #7f8c8d; }
+        .show-all-btn:hover { background-color: #636e72; }
+        
+        .flight-card { background: white; border: 1px solid #edf2f7; padding: 20px; margin-bottom: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.2s, box-shadow 0.2s; border-left: 5px solid #2ecc71; }
+        .flight-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0,0,0,0.08); }
+        .flight-header { color: #2c3e50; margin-top: 0; font-size: 1.2em; }
+        
+        .book-btn { background-color: #2ecc71; margin-top: 10px; padding: 10px 20px; }
+        .book-btn:hover { background-color: #27ae60; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .modal-content { background-color: white; padding: 35px; border-radius: 12px; width: 320px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); border-top: 4px solid #2ecc71; }
+        .close-btn { background-color: #e74c3c; }
+        .close-btn:hover { background-color: #c0392b; }
+        
+        .hidden { display: none !important; }
+        #confirmationPage { background: white; padding: 50px; border-radius: 12px; text-align: center; border: 2px solid #2ecc71; max-width: 600px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        .success-badge { background-color: #e8f8f5; color: #27ae60; border: 1px solid #2ecc71; padding: 8px 25px; border-radius: 30px; font-size: 16px; font-weight: bold; display: inline-block; margin-bottom: 25px; }
+        #ticketDetails p { font-size: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px; }
+        #ticketDetails p:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <h1>FlyTicket Flight System</h1>
+        <button class="admin-nav-btn" onclick="window.location.href='/admin.html'">Admin Panel</button>
+    </div>
+
+    <div id="mainPage">
+        <div class="search-box">
+            <select id="fromCity"><option value="">From (Origin)</option></select>
+            <select id="toCity"><option value="">To (Destination)</option></select>
+            <input type="date" id="flightDate">
+            <button onclick="searchFlights()">Search Flights</button>
+            <button class="show-all-btn" onclick="showAllFlights()">Show All Flights</button>
+        </div>
+
+        <div id="flights-container"></div>
+    </div>
+
+    <div id="confirmationPage" class="hidden">
+        <div class="success-badge">Success</div>
+        <h2 style="color: #2c3e50; margin-top: 0;">Booking Confirmed!</h2>
+        <div id="ticketDetails" style="text-align: left; background: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 25px; border-left: 5px solid #28a745;"></div>
+        <button onclick="returnToHome()" style="background-color: #3498db; padding: 12px 30px;">Back to Home</button>
+    </div>
+
+    <div id="bookingModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;">Passenger Details</h3>
+            <input type="text" id="pName" placeholder="First Name" required>
+            <input type="text" id="pSurname" placeholder="Last Name" required>
+            <input type="email" id="pEmail" placeholder="Email Address" required>
+            <button class="book-btn" onclick="submitBooking()">Confirm Booking</button>
+            <button class="close-btn" onclick="closeModal()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedFlightId = ''; 
+        let selectedFlightDetails = '';
+
+        async function loadCities() {
+            try {
+                const response = await fetch('/cities');
+                const cities = await response.json();
+                const fromSelect = document.getElementById('fromCity');
+                const toSelect = document.getElementById('toCity');
+                
+                cities.forEach(city => {
+                    fromSelect.appendChild(new Option(city.city_name, city.city_id));
+                    toSelect.appendChild(new Option(city.city_name, city.city_id));
+                });
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        async function searchFlights() {
+            try {
+                const fromCity = document.getElementById('fromCity').value;
+                const toCity = document.getElementById('toCity').value;
+                const flightDate = document.getElementById('flightDate').value;
+                
+                const params = new URLSearchParams();
+                if (fromCity) params.append('from', fromCity);
+                if (toCity) params.append('to', toCity);
+                if (flightDate) params.append('date', flightDate);
+
+                const response = await fetch(`/flights?${params.toString()}`);
+                const flights = await response.json();
+                const container = document.getElementById('flights-container');
+                container.innerHTML = ''; 
+
+                if (flights.length === 0) {
+                    container.innerHTML = '<p style="color: #7f8c8d; font-style: italic;">No flights found for your search criteria.</p>';
+                    return;
+                }
+
+                flights.forEach(flight => {
+                    const card = document.createElement('div');
+                    card.className = 'flight-card';
+                    
+                    const routeStr = `${flight.from_city_name} -> ${flight.to_city_name}`;
+                    const timeStr = `${new Date(flight.departure_time).toLocaleString('en-GB')} - ${new Date(flight.arrival_time).toLocaleString('en-GB')}`;
+                    
+                    card.innerHTML = `
+                        <h3 class="flight-header">Flight ID: ${flight.flight_id}</h3>
+                        <p><strong>Route:</strong> ${routeStr}</p>
+                        <p><strong>Time:</strong> ${timeStr}</p>
+                        <p><strong>Price:</strong> <span style="color: #e67e22; font-weight: bold;">${flight.price} TRY</span> | <strong>Available Seats:</strong> ${flight.seats_available}</p>
+                        <button class="book-btn" onclick="openModal('${flight.flight_id}', '${routeStr}', '${timeStr}')">Book Ticket</button>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        function showAllFlights() {
+            document.getElementById('fromCity').value = '';
+            document.getElementById('toCity').value = '';
+            document.getElementById('flightDate').value = '';
+            searchFlights();
+        }
+
+        function openModal(flightId, route, time) {
+            selectedFlightId = flightId;
+            selectedFlightDetails = { route, time };
+            document.getElementById('bookingModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('bookingModal').style.display = 'none';
+            document.getElementById('pName').value = '';
+            document.getElementById('pSurname').value = '';
+            document.getElementById('pEmail').value = '';
+        }
+
+        async function submitBooking() {
+            const name = document.getElementById('pName').value;
+            const surname = document.getElementById('pSurname').value;
+            const email = document.getElementById('pEmail').value;
+
+            if (!name || !surname || !email) {
+                alert('Please fill all fields!');
+                return;
+            }
+
+            try {
+                const response = await fetch('/tickets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        passenger_name: name,
+                        passenger_surname: surname,
+                        passenger_email: email,
+                        flight_id: selectedFlightId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    closeModal();
+                    showConfirmationPage(data.ticket_id, name, surname, data.seat_number);
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            } catch (error) { console.error('Booking Error:', error); }
+        }
+
+        function showConfirmationPage(ticketId, name, surname, seatNumber) {
+            document.getElementById('mainPage').classList.add('hidden');
+            document.getElementById('confirmationPage').classList.remove('hidden');
+            
+            document.getElementById('ticketDetails').innerHTML = `
+                <p><strong>Ticket ID:</strong> ${ticketId}</p>
+                <p><strong>Passenger:</strong> ${name} ${surname}</p>
+                <p><strong>Seat Number:</strong> <span style="background: #ecf0f1; padding: 2px 8px; border-radius: 4px; font-weight: bold;">${seatNumber}</span></p>
+                <p><strong>Flight:</strong> ${selectedFlightId}</p>
+                <p><strong>Route:</strong> ${selectedFlightDetails.route}</p>
+                <p><strong>Date & Time:</strong> ${selectedFlightDetails.time}</p>
+            `;
+        }
+
+        function returnToHome() {
+            document.getElementById('confirmationPage').classList.add('hidden');
+            document.getElementById('mainPage').classList.remove('hidden');
+            searchFlights();
+        }
+
+        loadCities();
+        searchFlights();
+    </script>
+</body>
+</html>
